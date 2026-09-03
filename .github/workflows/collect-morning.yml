@@ -85,6 +85,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then echo "telegram secrets not set, skip"; exit 0; fi
           DATE=$(TZ=Asia/Kolkata date +%F)
           if [ ! -d "data/live/ticks/date=$DATE" ]; then echo "No ticks for $DATE, skip telegram"; exit 0; fi
           ZIP="ticks-$DATE.zip"
