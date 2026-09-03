@@ -4,7 +4,7 @@ name: Collect Morning (09:15-15:00 IST)
 # Morning session 09:15-15:00 = 5h45m = 345 min -> fits safely.
 # Closing 40m is separate workflow collect-closing.yml
 
-"on":
+on:
   schedule:
     - cron: '45 3 * * 1-5'  # 09:15 IST = 03:45 UTC, Mon-Fri
   workflow_dispatch:
@@ -65,8 +65,8 @@ jobs:
       #     name: ticks-morning-${{ env.DATE || github.run_id }}
       #     path: |
       #       data/live/ticks/
-          if-no-files-found: warn
-          retention-days: 14
+      #       if-no-files-found: warn
+      #       retention-days: 14
 
       - name: Send zip to Telegram
         if: always()
