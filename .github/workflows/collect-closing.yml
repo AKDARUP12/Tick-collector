@@ -57,21 +57,12 @@ jobs:
         if: ${{ inputs.dry_run == 'true' }}
         run: python run_collect.py --dry-run
 
-      - name: Build 1-min bars
-        if: always()
-        run: |
-          DATE=$(TZ=Asia/Kolkata date +%F)
-          if [ -d "data/live/ticks/date=$DATE" ]; then
-            python tools/build_minute.py --date $DATE || true
-          fi
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ticks-closing-${{ env.DATE || github.run_id }}
           path: |
             data/live/ticks/
-            data/live/minute/
           if-no-files-found: warn
           retention-days: 14
 
@@ -85,8 +76,8 @@ jobs:
           DATE=$(TZ=Asia/Kolkata date +%F)
           if [ ! -d "data/live/ticks/date=$DATE" ]; then echo "No ticks for $DATE, skip telegram"; exit 0; fi
           ZIP="ticks-$DATE-closing.zip"
-          echo "Zipping data/live/ticks/date=$DATE + data/live/minute -> $ZIP"
-          zip -r -9 "$ZIP" "data/live/ticks/date=$DATE" data/live/minute 2>&1 | tail -20
+          echo "Zipping data/live/ticks/date=$DATE -> $ZIP"
+          zip -r -9 "$ZIP" "data/live/ticks/date=$DATE" 2>&1 | tail -20
           ls -lh "$ZIP"
           MAX=45M
           if [ $(stat -c%s "$ZIP") -gt 47185920 ]; then
