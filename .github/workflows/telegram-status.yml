@@ -1,9 +1,7 @@
-name: Telegram Status Poller (24/7)
+name: Telegram Status Poller (24/7) - MANUAL ONLY
 
 on:
-  schedule:
-    - cron: '* * * * *'  # every 1m for instant /status reply
-  workflow_dispatch:
+  workflow_dispatch:  # daemon handles 24/7 instant, this kept as manual fallback
 
 concurrency:
   group: telegram-status
