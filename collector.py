@@ -129,9 +129,11 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
     streams.data_stream.on_ticks = on_data_tick
     streams.hft_data_stream.on_ltp_tick = lambda t: on_data_tick(t)
     streams.hft_data_stream.on_full_tick = lambda t: on_data_tick(t)
-    # Telegram /status live handler (polls getUpdates, answers only TELEGRAM_CHAT_ID)
+    # Telegram /status live handler + 15-min zip sender (tick-only, <50MB each)
     _tg_stop = threading.Event()
     _tg_thread = None
+    _zip_stop = threading.Event()
+    _zip_thread = None
     _sess_start_ts = time.monotonic()
     try:
         _tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -149,8 +151,69 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
                     "uptime": f"{int((time.monotonic()-_sess_start_ts)//3600)}h{int((time.monotonic()-_sess_start_ts)%3600//60)}m",
                 }
             _tg_thread = start_polling(_tg_stop, _tg_token, _tg_chat, _status_fn)
+            # 15-min incremental zip sender
+            def _zip_loop():
+                import subprocess, pathlib
+                last_sent = set()
+                while not _zip_stop.is_set() and _running and not (stop_event is not None and stop_event.is_set()):
+                    # wait 15m aligned to wall clock
+                    now = datetime.now(timezone.utc).astimezone(IST)
+                    # sleep until next 15m boundary
+                    mins = now.minute % 15
+                    secs_to_next = (15 - mins) * 60 - now.second - now.microsecond/1e6
+                    if secs_to_next <= 0: secs_to_next += 900
+                    # but for first iteration send after 15m, not immediately
+                    # wait min(900, secs_to_next) with interruptible sleep
+                    waited = 0
+                    while waited < 900 and not _zip_stop.is_set() and _running and not (stop_event is not None and stop_event.is_set()):
+                        time.sleep(min(1, 900-waited))
+                        waited += 1
+                        if waited >= secs_to_next: break
+                    if _zip_stop.is_set() or not _running or (stop_event is not None and stop_event.is_set()):
+                        break
+                    try:
+                        day_d = data_root() / "live" / "ticks" / f"date={sess_date}"
+                        if not day_d.exists():
+                            continue
+                        # collect files modified since last send (or all if first)
+                        files = sorted(day_d.glob("token=*.parquet"))
+                        new_files = [p for p in files if p not in last_sent]
+                        if not new_files:
+                            # still send heartbeat if no new files but interval passed
+                            continue
+                        ts = datetime.now(timezone.utc).astimezone(IST).strftime("%H%M")
+                        zip_name = f"ticks-{sess_date}-{ts}.zip"
+                        # zip only new files to stay <50MB (15m ~ 25MB)
+                        import zipfile
+                        with zipfile.ZipFile(zip_name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+                            for p in new_files:
+                                z.write(p, arcname=f"date={sess_date}/{p.name}")
+                            # include _meta
+                            meta = day_d / "_meta.json"
+                            if meta.exists():
+                                z.write(meta, arcname=f"date={sess_date}/_meta.json")
+                        sz = pathlib.Path(zip_name).stat().st_size
+                        print(f"15m zip {zip_name} {len(new_files)} files {sz//1024}KB")
+                        if sz > 48_000_000:
+                            print(f"warn zip {sz} >48MB, will still try send (may split)")
+                        # send via bot
+                        import requests
+                        with open(zip_name, "rb") as f:
+                            r = requests.post(f"https://api.telegram.org/bot{_tg_token}/sendDocument",
+                                              data={"chat_id": _tg_chat, "caption": f"Ticks {sess_date} {ts} 15m {len(new_files)} files {getattr(on_data_tick,'count',0)} ticks"},
+                                              files={"document": (zip_name, f)}, timeout=120)
+                            print(f"telegram 15m send {r.status_code} {r.text[:300]}")
+                        # mark sent
+                        last_sent.update(new_files)
+                        try: pathlib.Path(zip_name).unlink()
+                        except: pass
+                    except Exception as e:
+                        print(f"15m zip send failed: {e}")
+                        import traceback; traceback.print_exc()
+            _zip_thread = threading.Thread(target=_zip_loop, daemon=True, name="telegram-15m")
+            _zip_thread.start()
     except Exception as e:
-        print(f"telegram status start failed: {e}")
+        print(f"telegram status/zip start failed: {e}")
     streams.hft_data_stream.on_response = lambda r: print(f"HFT {r.get('error_code')} ok={r.get('success_count')} err={r.get('error_count')} {r.get('error_msg','')[:60]}")
     streams.data_stream.on_disconnect = lambda: print("DataStream disconnected - will auto-reconnect")
 
@@ -203,6 +266,8 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
         pass
     finally:
         try: _tg_stop.set()
+        except: pass
+        try: _zip_stop.set()
         except: pass
         print("Disconnecting...")
         try: streams.disconnect_all()
