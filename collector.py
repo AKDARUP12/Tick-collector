@@ -120,7 +120,8 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
             on_data_tick.count = getattr(on_data_tick, 'count', 0) + 1
             if on_data_tick.count % 500 == 0:
                 ltp = getattr(tick, 'ltp', tick.get('ltp', 0) if isinstance(tick, dict) else 0)
-                print(f"[{time.strftime('%H:%M:%S')}] ticks={on_data_tick.count} last token={getattr(tick,'token', tick.get('token',0))} ltp={ltp}")
+                last_tok = tick.token if hasattr(tick, 'token') else (tick.get('token',0) if isinstance(tick, dict) else 0)
+                print(f"[{time.strftime('%H:%M:%S')}] ticks={on_data_tick.count} last token={last_tok} ltp={ltp}")
         except Exception as e:
             import traceback
             print(f"tick error: {e}")
