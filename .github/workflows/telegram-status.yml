@@ -2,7 +2,7 @@ name: Telegram Status Poller (24/7)
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # every 5m
+    - cron: '* * * * *'  # every 1m for instant /status reply
   workflow_dispatch:
 
 concurrency:
