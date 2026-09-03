@@ -1,0 +1,44 @@
+name: Telegram Daemon (instant)
+
+# Long-polling daemon - replies in <3s vs 1m cron. Runs 6h max, restarts via schedule.
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # every 6h restart (covers 24/7 with 4 jobs/day)
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-daemon
+  cancel-in-progress: false
+
+jobs:
+  daemon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355  # <360
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: .telegram_offset
+          key: telegram-offset-v1-${{ github.run_id }}
+          restore-keys: |
+            telegram-offset-v1-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Long-poll daemon
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          pip install -q requests
+          python tools/telegram_poller.py --daemon
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .telegram_offset
+          key: telegram-offset-v1-${{ github.run_id }}
