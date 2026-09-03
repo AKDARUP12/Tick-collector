@@ -12,7 +12,7 @@ image = modal.Image.debian_slim(python_version="3.11").pip_install_from_requirem
     secrets=[modal.Secret.from_name("arrow-secrets")],
     timeout=7*3600,  # 7h single session 09:10-15:40, no split
     retries=modal.Retries(max_retries=2),
-    keep_warm=0,
+    min_containers=0,
 )
 def collect():
     import os
