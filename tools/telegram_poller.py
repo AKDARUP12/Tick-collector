@@ -41,8 +41,8 @@ def gh_latest():
 def send(chat, text):
     try:
         r = requests.post(f"https://api.telegram.org/bot{BOT}/sendMessage",
-                          json={"chat_id": chat, "text": text, "parse_mode":"Markdown"}, timeout=10)
-        print(f"send to {chat}: {r.status_code} {r.text[:300]}")
+                          json={"chat_id": chat, "text": text}, timeout=10)
+        print(f"send to {chat}: {r.status_code} {r.text[:500]}")
         return r.ok
     except Exception as e:
         print(f"send err: {e}")
@@ -77,15 +77,15 @@ def main():
         cmd = text.split()[0].split("@")[0].lower()
         now = datetime.now(timezone.utc).astimezone(IST).strftime("%H:%M:%S IST")
         if cmd == "/id":
-            send(chat, f"chat_id: `{chat}`")
+            send(chat, f"chat_id: {chat}")
         elif cmd == "/help":
-            send(chat, "*Tick-collector*\n/status - live or last run\n/id - chat id\n/help - help")
+            send(chat, "Tick-collector\n/status - live or last run\n/id - chat id\n/help - help")
         elif cmd in ("/status","/last"):
             status = gh_latest()
             print(f"status gh_latest: {status[:200]}")
-            send(chat, f"⏰ `{now}`\n{status}\n\n_Data: `data/live/ticks` | Cron 09:15(45 3 UTC) & 15:00(30 9 UTC)_")
+            send(chat, f"{now}\n{status}\n\nData: data/live/ticks | Cron 09:15(45 3 UTC) & 15:00(30 9 UTC)")
         else:
-            send(chat, f"Unknown `{cmd}` try /status")
+            send(chat, f"Unknown {cmd} try /status")
     OFFSET_FILE.write_text(str(max_off))
     print(f"offset {offset}->{max_off}, handled {len(data.get('result',[]))} updates")
 
