@@ -5,7 +5,7 @@ name: Collect Closing (15:00-15:40 IST)
 
 on:
   schedule:
-    - cron: '30 9 * * 1-5'  # 15:00 IST = 09:30 UTC, Mon-Fri
+    - cron: '25 9 * * 1-5'  # 14:55 IST = 09:25 UTC, Mon-Fri (5m early, overlaps 14:55-15:00)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -14,7 +14,7 @@ on:
         default: 'false'
 
 concurrency:
-  group: market-collect
+  group: market-collect-closing
   cancel-in-progress: false
 
 jobs:

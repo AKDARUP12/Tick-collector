@@ -6,7 +6,7 @@ name: Collect Morning (09:15-15:00 IST)
 
 on:
   schedule:
-    - cron: '45 3 * * 1-5'  # 09:15 IST = 03:45 UTC, Mon-Fri
+    - cron: '40 3 * * 1-5'  # 09:10 IST = 03:40 UTC, Mon-Fri (5m early to warm up before 09:15 open)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -15,7 +15,7 @@ on:
         default: 'false'
 
 concurrency:
-  group: market-collect
+  group: market-collect-morning
   cancel-in-progress: false
 
 jobs:
