@@ -16,8 +16,9 @@ def _send(token, chat_id, text):
     try:
         import requests
         r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                          json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+                          json={"chat_id": chat_id, "text": text},
                           timeout=10)
+        print(f"telegram send {r.status_code} {r.text[:400]}")
         return r.ok
     except Exception as e:
         print(f"telegram send failed: {e}")
@@ -53,41 +54,54 @@ def start_polling(stop_event: threading.Event, token: str, allowed_chat: str, st
                         continue
                     cmd = text.split()[0].split("@")[0].lower()
                     if cmd == "/id":
-                        _send(token, chat, f"Your chat_id: `{chat}`\nAllowed: `{allowed}`")
+                        _send(token, chat, f"Your chat_id: {chat}\nAllowed: {allowed}")
                     elif cmd == "/help":
                         _send(token, chat,
-                              "*Tick-collector*\n"
-                              "/status - live session status\n"
+                              "Tick-collector\n"
+                              "/status - detailed live/idle status\n"
                               "/id - show your chat_id\n"
-                              "/help - this help")
+                              "/help - this help\n"
+                              "ZIPs sent at 15:00 & 15:40 IST")
                     elif cmd in ("/status", "/last"):
                         try:
-                            st = status_fn()  # dict with keys
+                            st = status_fn()
                         except Exception as e:
                             st = {"error": str(e)}
                         now = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d %H:%M:%S IST")
                         if "error" in st:
-                            _send(token, chat, f"❌ status error: {st['error']}")
+                            _send(token, chat, f"status error: {st['error']}")
                         else:
                             running = st.get("running", False)
-                            icon = "🟢 RUNNING" if running else "⚪ IDLE"
                             ticks = st.get("ticks", 0)
                             cvd = st.get("cvd", {})
                             files = st.get("files", 0)
                             sess = st.get("session_date", "?")
                             uptime = st.get("uptime", "?")
-                            # compact CVD
-                            cvd_str = ", ".join(f"{k}:{v}" for k,v in list(cvd.items())[:5])
-                            if len(cvd) > 5: cvd_str += f" +{len(cvd)-5} more"
+                            # size
+                            try:
+                                from pathlib import Path
+                                from paths import data_root
+                                d = data_root() / "live" / "ticks" / f"date={sess}"
+                                sz = sum(p.stat().st_size for p in d.glob("*.parquet"))//1024 if d.exists() else 0
+                                sz_str = f"{sz}KB" if sz else "0KB"
+                            except:
+                                sz_str = "n/a"
+                            cvd_items = list(cvd.items())[:6]
+                            cvd_str = ", ".join(f"{k}:{v}" for k,v in cvd_items) or "n/a"
+                            if len(cvd) > 6: cvd_str += f" +{len(cvd)-6} more"
+                            total_cvd = sum(cvd.values()) if cvd else 0
+                            icon = "RUNNING" if running else "IDLE"
                             txt = (
-                                f"{icon} `{now}`\n"
-                                f"Session: `{sess}` up {uptime}\n"
-                                f"Ticks: `{ticks}`  Files: `{files}`\n"
-                                f"CVD: {cvd_str or 'n/a'}\n"
-                                f"Data: `data/live/ticks/date={sess}`\n"
+                                f"{icon} {now}\n"
+                                f"Session: {sess} up {uptime} market 09:15-15:30\n"
+                                f"Ticks: {ticks}  Files: {files}  Size: {sz_str}\n"
+                                f"CVD total:{total_cvd} per-token: {cvd_str}\n"
+                                f"Data: data/live/ticks/date={sess}\n"
+                                f"Strikes: 4 levels (8 legs) + NIFTY spot | Splits 09:15-15:00 & 15:00-15:40\n"
                             )
                             if not running:
-                                txt += "\n_Market closed — next run 09:15 IST (cron 45 3 UTC)._"
+                                txt += "Market closed - next 09:15 IST\n"
+                            txt += "Artifacts: ticks-morning/afternoon zip auto-sent at session end"
                             _send(token, chat, txt)
                     else:
                         _send(token, chat, f"Unknown `{cmd}` — try /status, /help, /id")

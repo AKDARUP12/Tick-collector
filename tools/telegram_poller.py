@@ -16,26 +16,85 @@ REPO = os.getenv("GITHUB_REPOSITORY","AKDARUP12/Tick-collector")
 OFFSET_FILE = Path(".telegram_offset")
 IST = ZoneInfo("Asia/Kolkata")
 
-def gh_latest():
+def gh_detailed():
     try:
+        now_ist = datetime.now(timezone.utc).astimezone(IST)
+        date_ist = now_ist.date().isoformat()
+        # market window
+        from datetime import time as dtime
+        is_open = dtime(9,15) <= now_ist.time() <= dtime(15,30)
+        market = "OPEN 09:15-15:30" if is_open and now_ist.weekday()<5 else "CLOSED"
+        # runs
         r = requests.get(f"https://api.github.com/repos/{REPO}/actions/runs",
-                         params={"per_page": 5, "branch": "main"},
+                         params={"per_page": 10, "branch": "main"},
                          headers={"Authorization": f"Bearer {GH_TOKEN}", "Accept":"application/vnd.github+json"},
                          timeout=10)
         j = r.json()
         runs = j.get("workflow_runs",[])
-        if not runs: return "no runs"
-        lines=[]
+        # find collector runs
+        coll = [x for x in runs if "Collect" in x.get("name","")]
+        coll_running = next((x for x in coll if x.get("status")=="in_progress"), None)
+        if coll_running:
+            coll_line = f"🟢 RUNNING {coll_running['name']} since {coll_running['created_at'][11:16]} UTC"
+        else:
+            last = coll[0] if coll else None
+            if last:
+                coll_line = f"⚪ IDLE last {last['name']} {last['conclusion']} {last['created_at'][:16].replace('T',' ')}"
+            else:
+                coll_line = "⚪ IDLE no collector runs"
+        # artifacts for today
+        try:
+            ar = requests.get(f"https://api.github.com/repos/{REPO}/actions/artifacts",
+                              params={"per_page": 5},
+                              headers={"Authorization": f"Bearer {GH_TOKEN}", "Accept":"application/vnd.github+json"},
+                              timeout=10).json()
+            arts = [a for a in ar.get("artifacts",[]) if date_ist in a.get("name","") or "ticks" in a.get("name","")]
+            art_str = "; ".join(f"{a['name']} {a['size_in_bytes']//1024}KB" for a in arts[:2]) if arts else "no artifacts today"
+        except:
+            art_str = "artifacts n/a"
+        # local data size if on collector runner (will be empty on poller)
+        try:
+            from pathlib import Path as _P
+            # try live ticks path
+            d = _P("data/live/ticks") 
+            if d.exists():
+                cnt = len(list(d.rglob("*.parquet")))
+                sz = sum(p.stat().st_size for p in d.rglob("*.parquet"))//1024
+                data_str = f"{cnt} parquet, {sz}KB"
+            else:
+                data_str = "no local ticks (ephemeral)"
+        except:
+            data_str = "n/a"
+        lines = [
+            f"Market: {market} | Date: {date_ist} | {now_ist.strftime('%H:%M:%S IST')}",
+            coll_line,
+            "Last 3 runs:"
+        ]
         for run in runs[:3]:
-            name = run.get("name","")
+            name = run.get("name","")[:22]
             status = run.get("status","")
-            conc = run.get("conclusion","")
-            created = run.get("created_at","")[:16].replace("T"," ")
+            conc = run.get("conclusion","") or ""
+            created = run.get("created_at","")[11:16]
+            dur = ""
+            try:
+                if run.get("created_at") and run.get("updated_at"):
+                    from dateutil.parser import isoparse
+                    dur_s = (isoparse(run["updated_at"]) - isoparse(run["created_at"])).total_seconds()
+                    dur = f" {int(dur_s//60)}m{int(dur_s%60)}s"
+            except: pass
             icon = "🟢" if status=="in_progress" else "✅" if conc=="success" else "❌" if conc=="failure" else "⚪"
-            lines.append(f"{icon} {name[:22]} {status}/{conc} {created}")
+            lines.append(f" {icon} {name} {status}/{conc} {created}{dur}")
+        lines += [
+            f"Artifacts: {art_str}",
+            f"Local: {data_str}",
+            f"Splits: 09:15-15:00 (45 3 UTC) & 15:00-15:40 (30 9 UTC) | Repo: {REPO}",
+            "ZIPs auto-sent to this chat at session end"
+        ]
         return "\n".join(lines)
     except Exception as e:
-        return f"gh api err: {e}"
+        return f"status err: {e}"
+
+def gh_latest(): return gh_detailed()
 
 def send(chat, text):
     try:
