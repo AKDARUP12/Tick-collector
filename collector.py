@@ -224,7 +224,7 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
         print("Re-subscribing after reconnect...")
         try:
             if option_tokens:
-                streams.hft_data_stream.subscribe_by_segment(DATA_MODE if DATA_MODE in ("ltpc","full") else "full", {HFTDataStream.EXCH_NSE_FO: option_tokens}, latency=50)
+                streams.hft_data_stream.subscribe_by_segment(DATA_MODE if DATA_MODE in ("ltpc","full") else "full", {HFTDataStream.EXCH_NSE_FO: option_tokens}, latency=10)
             streams.subscribe_market_data(DataMode.FULL, [spot_token])
         except Exception as e:
             print(f"resub failed: {e}")
@@ -250,8 +250,8 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
         print("Connecting HFT (zstd)...")
         streams.connect_hft_data_stream()
         time.sleep(1.2)
-        streams.hft_data_stream.subscribe_by_segment(DATA_MODE if DATA_MODE in ("ltpc","full") else "full", {HFTDataStream.EXCH_NSE_FO: option_tokens}, latency=50)
-        print(f"HFT subscribed {len(option_tokens)} FO tokens latency=50ms")
+        streams.hft_data_stream.subscribe_by_segment(DATA_MODE if DATA_MODE in ("ltpc","full") else "full", {HFTDataStream.EXCH_NSE_FO: option_tokens}, latency=10)
+        print(f"HFT subscribed {len(option_tokens)} FO tokens latency=10ms FASTEST")
     # Spot always via DataStream (INDEX not on HFT)
     print("Connecting DataStream for NIFTY spot...")
     streams.connect_data_stream()

@@ -53,8 +53,8 @@ except ImportError:  # standalone use: resolve without the shared module
             return Path(custom)
         return APP_ROOT / "data"
 
-FLUSH_TICKS = 1000
-FLUSH_SECS = 5
+FLUSH_TICKS = 500  # fastest: smaller segments, more frequent disk write
+FLUSH_SECS = 1   # fastest: 1s timer
 SEEN_MAX = 200_000  # dedupe memory bound; beyond this oldest keys are forgotten
 
 _cvd: Dict[int, int] = {}
