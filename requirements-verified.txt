@@ -1,0 +1,6 @@
+pandas==3.0.5
+pyarrow-client==1.7.0
+python-dotenv==1.2.3
+requests==2.34.2
+websocket-client==1.9.0
+zstandard==0.25.0

@@ -1,0 +1,10 @@
+pyarrow-client>=1.7.0
+pyotp>=2.9.0
+pandas>=2.0
+pyarrow>=14.0
+python-dotenv>=1.0
+websocket-client>=1.5
+requests>=2.25
+python-dateutil>=2.8
+zstandard>=0.22
+openpyxl>=3.1
