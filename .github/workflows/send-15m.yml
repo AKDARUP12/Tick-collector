@@ -1,0 +1,43 @@
+name: Send 15m Ticks
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'YYYY-MM-DD (default today IST)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'dry_run no send'
+        required: false
+        default: 'false'
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -q pandas pyarrow requests
+      - name: Send 15m zips
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TZ: Asia/Kolkata
+        run: |
+          DATE=${{ inputs.date }}
+          if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Kolkata date +%F); fi
+          echo "Date $DATE"
+          # try to restore ticks from previous artifacts if any (for manual send)
+          # data/live/ticks is ephemeral, so for live run we need to download artifact from latest Collect run
+          # attempt download via gh if ticks missing
+          if [ ! -d "data/live/ticks/date=$DATE" ]; then
+            echo "No local ticks, trying to download latest artifact..."
+            pip install -q gh 2>/dev/null || true
+            # fallback: just run send_15m will report missing
+          fi
+          python tools/send_15m.py --date $DATE $([ "${{ inputs.dry_run }}" = "true" ] && echo "--dry-run")
