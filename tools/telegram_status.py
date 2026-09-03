@@ -62,6 +62,37 @@ def start_polling(stop_event: threading.Event, token: str, allowed_chat: str, st
                               "/id - show your chat_id\n"
                               "/help - this help\n"
                               "ZIPs sent at 15:00 & 15:40 IST")
+                    elif cmd == "/sendnow":
+                        # immediate 15m zip without stopping collector
+                        try:
+                            st = status_fn()
+                            sess = st.get("session_date","?")
+                            from pathlib import Path
+                            from paths import data_root
+                            import zipfile, pathlib
+                            day_d = data_root() / "live" / "ticks" / f"date={sess}"
+                            files = sorted(day_d.glob("token=*.parquet")) if day_d.exists() else []
+                            if not files:
+                                _send(token, chat, f"no ticks yet for {sess}")
+                            else:
+                                ts = datetime.now(timezone.utc).astimezone(IST).strftime("%H%M")
+                                zip_name = f"ticks-{sess}-{ts}-now.zip"
+                                with zipfile.ZipFile(zip_name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+                                    for p in files[-200:]:  # last 200 files ~ recent 15m
+                                        z.write(p, arcname=f"date={sess}/{p.name}")
+                                sz = pathlib.Path(zip_name).stat().st_size
+                                if sz > 48_000_000:
+                                    _send(token, chat, f"now zip {sz//1024}KB >48MB, use 15m slices at :00,:15,:30,:45")
+                                else:
+                                    import requests
+                                    with open(zip_name, "rb") as f:
+                                        r = requests.post(f"https://api.telegram.org/bot{token}/sendDocument",
+                                                          data={"chat_id": chat, "caption": f"Ticks {sess} now {ts} {len(files)} files {st.get('ticks',0)} ticks"},
+                                                          files={"document": (zip_name, f)}, timeout=120)
+                                        _send(token, chat, f"sent now {zip_name} {r.status_code}")
+                                pathlib.Path(zip_name).unlink(missing_ok=True)
+                        except Exception as e:
+                            _send(token, chat, f"sendnow error: {e}")
                     elif cmd in ("/status", "/last"):
                         try:
                             st = status_fn()
