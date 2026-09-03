@@ -129,6 +129,28 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
     streams.data_stream.on_ticks = on_data_tick
     streams.hft_data_stream.on_ltp_tick = lambda t: on_data_tick(t)
     streams.hft_data_stream.on_full_tick = lambda t: on_data_tick(t)
+    # Telegram /status live handler (polls getUpdates, answers only TELEGRAM_CHAT_ID)
+    _tg_stop = threading.Event()
+    _tg_thread = None
+    _sess_start_ts = time.monotonic()
+    try:
+        _tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+        _tg_chat = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        if _tg_token:
+            from tools.telegram_status import start_polling
+            import storage as _storage
+            def _status_fn():
+                return {
+                    "running": True,
+                    "session_date": sess_date,
+                    "ticks": getattr(on_data_tick, 'count', 0),
+                    "cvd": dict(getattr(_storage, '_cvd', {})),
+                    "files": len(list((data_root() / "live" / "ticks" / f"date={sess_date}").glob("token=*.parquet"))),
+                    "uptime": f"{int((time.monotonic()-_sess_start_ts)//3600)}h{int((time.monotonic()-_sess_start_ts)%3600//60)}m",
+                }
+            _tg_thread = start_polling(_tg_stop, _tg_token, _tg_chat, _status_fn)
+    except Exception as e:
+        print(f"telegram status start failed: {e}")
     streams.hft_data_stream.on_response = lambda r: print(f"HFT {r.get('error_code')} ok={r.get('success_count')} err={r.get('error_count')} {r.get('error_msg','')[:60]}")
     streams.data_stream.on_disconnect = lambda: print("DataStream disconnected - will auto-reconnect")
 
@@ -180,6 +202,8 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
     except KeyboardInterrupt:
         pass
     finally:
+        try: _tg_stop.set()
+        except: pass
         print("Disconnecting...")
         try: streams.disconnect_all()
         except: pass
