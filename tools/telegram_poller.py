@@ -24,24 +24,37 @@ def gh_detailed():
         from datetime import time as dtime
         is_open = dtime(9,15) <= now_ist.time() <= dtime(15,30)
         market = "OPEN 09:15-15:30" if is_open and now_ist.weekday()<5 else "CLOSED"
-        # runs
+        # runs - fetch all, then specifically collector workflows (pollers dominate top 10)
         r = requests.get(f"https://api.github.com/repos/{REPO}/actions/runs",
-                         params={"per_page": 10, "branch": "main"},
+                         params={"per_page": 20, "branch": "main"},
                          headers={"Authorization": f"Bearer {GH_TOKEN}", "Accept":"application/vnd.github+json"},
                          timeout=10)
         j = r.json()
         runs = j.get("workflow_runs",[])
-        # find collector runs
-        coll = [x for x in runs if "Collect" in x.get("name","")]
+        # also fetch collector workflows directly to avoid being buried by poller runs
+        coll = []
+        for wf in ["collect-morning.yml","collect-closing.yml"]:
+            try:
+                cr = requests.get(f"https://api.github.com/repos/{REPO}/actions/workflows/{wf}/runs",
+                                  params={"per_page": 3, "branch": "main"},
+                                  headers={"Authorization": f"Bearer {GH_TOKEN}", "Accept":"application/vnd.github+json"},
+                                  timeout=10).json()
+                coll.extend(cr.get("workflow_runs",[]))
+            except: pass
+        coll = sorted(coll, key=lambda x: x.get("created_at",""), reverse=True)
         coll_running = next((x for x in coll if x.get("status")=="in_progress"), None)
+        # also check any in_progress from main list
+        if not coll_running:
+            coll_running = next((x for x in runs if "Collect" in x.get("name","") and x.get("status")=="in_progress"), None)
         if coll_running:
             coll_line = f"🟢 RUNNING {coll_running['name']} since {coll_running['created_at'][11:16]} UTC"
         else:
             last = coll[0] if coll else None
             if last:
-                coll_line = f"⚪ IDLE last {last['name']} {last['conclusion']} {last['created_at'][:16].replace('T',' ')}"
+                conc = last.get("conclusion","")
+                coll_line = f"⚪ IDLE last {last['name']} {conc} {last['created_at'][:16].replace('T',' ')}"
             else:
-                coll_line = "⚪ IDLE no collector runs"
+                coll_line = "⚪ IDLE no collector runs (next 09:15 IST 45 3 UTC)"
         # artifacts for today
         try:
             ar = requests.get(f"https://api.github.com/repos/{REPO}/actions/artifacts",
