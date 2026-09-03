@@ -86,7 +86,7 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
 
     # Guard: refuse to double-collect - if today's meta was written moments ago,
     # another collector process is probably still running (e.g. a lost background one).
-    day_dir = data_root() / f"date={sess_date}"
+    day_dir = data_root() / "live" / "ticks" / f"date={sess_date}"
     meta_path = day_dir / "_meta.json"
     if meta_path.exists():
         try:

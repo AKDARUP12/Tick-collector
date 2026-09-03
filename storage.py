@@ -232,11 +232,14 @@ def _restore_day(day_dir: Path) -> None:
             pass  # unreadable old file: CVD for that token just starts fresh
 
 
+def _tick_dir(date_str: str) -> Path:
+    return data_root() / "live" / "ticks" / f"date={date_str}"
+
 def init_session(date_str: Optional[str] = None, meta: Optional[Dict] = None):
     global _session_date, _session_meta
     _session_date = date_str or _now_ist_naive().date().isoformat()
     _session_meta = meta or {}
-    day_dir = data_root() / f"date={_session_date}"
+    day_dir = _tick_dir(_session_date)
     day_dir.mkdir(parents=True, exist_ok=True)
     with _seen_lock:
         _seen.clear()
@@ -310,7 +313,7 @@ def flush():
         return
 
     date_str = _session_date or _now_ist_naive().date().isoformat()
-    day_dir = data_root() / f"date={date_str}"
+    day_dir = _tick_dir(date_str)
     day_dir.mkdir(parents=True, exist_ok=True)
 
     failed: Dict[int, List[dict]] = {}
@@ -330,7 +333,7 @@ def flush():
 
 
 def _write_meta(date_str: str):
-    day_dir = data_root() / f"date={date_str}"
+    day_dir = _tick_dir(date_str)
     meta_path = day_dir / "_meta.json"
     counts: Dict[str, int] = {}
     for p in day_dir.glob("token=*.parquet"):
@@ -385,8 +388,8 @@ def close():
     flush()
     if _session_date:
         _write_meta(_session_date)
-        n_files = len(list((data_root() / f"date={_session_date}").glob("token=*.parquet")))
-        print(f"Tick lake closed: {data_root()}/date={_session_date} - {n_files} segment file(s)")
+        n_files = len(list(_tick_dir(_session_date).glob("token=*.parquet")))
+        print(f"Tick lake closed: {_tick_dir(_session_date)} - {n_files} segment file(s)")
 
 
 # Legacy aliases for collector compatibility
