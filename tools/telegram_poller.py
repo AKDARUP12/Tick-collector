@@ -39,8 +39,14 @@ def gh_latest():
         return f"gh api err: {e}"
 
 def send(chat, text):
-    requests.post(f"https://api.telegram.org/bot{BOT}/sendMessage",
-                  json={"chat_id": chat, "text": text, "parse_mode":"Markdown"}, timeout=10)
+    try:
+        r = requests.post(f"https://api.telegram.org/bot{BOT}/sendMessage",
+                          json={"chat_id": chat, "text": text, "parse_mode":"Markdown"}, timeout=10)
+        print(f"send to {chat}: {r.status_code} {r.text[:300]}")
+        return r.ok
+    except Exception as e:
+        print(f"send err: {e}")
+        return False
 
 def main():
     if not BOT:
@@ -55,14 +61,18 @@ def main():
     if not data.get("ok"):
         print(f"getUpdates failed {data}"); return
     max_off = offset
+    print(f"poll offset={offset} found {len(data.get('result',[]))} updates, allow={CHAT_ALLOW}")
     for upd in data.get("result",[]):
         max_off = max(max_off, upd["update_id"]+1)
         msg = upd.get("message") or {}
         chat = str(msg.get("chat",{}).get("id",""))
-        if CHAT_ALLOW and chat != CHAT_ALLOW:
-            continue
         text = (msg.get("text") or "").strip()
+        print(f"upd {upd['update_id']} chat={chat} text='{text}'")
+        if CHAT_ALLOW and chat != CHAT_ALLOW:
+            print(f" skip not allowed")
+            continue
         if not text.startswith("/"):
+            print(" skip not command")
             continue
         cmd = text.split()[0].split("@")[0].lower()
         now = datetime.now(timezone.utc).astimezone(IST).strftime("%H:%M:%S IST")
@@ -72,6 +82,7 @@ def main():
             send(chat, "*Tick-collector*\n/status - live or last run\n/id - chat id\n/help - help")
         elif cmd in ("/status","/last"):
             status = gh_latest()
+            print(f"status gh_latest: {status[:200]}")
             send(chat, f"⏰ `{now}`\n{status}\n\n_Data: `data/live/ticks` | Cron 09:15(45 3 UTC) & 15:00(30 9 UTC)_")
         else:
             send(chat, f"Unknown `{cmd}` try /status")
