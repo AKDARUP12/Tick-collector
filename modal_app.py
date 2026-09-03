@@ -18,8 +18,8 @@ def collect():
     import os
     os.environ["TZ"] = "Asia/Kolkata"
     import subprocess, sys
-    print("Starting Modal tick collector 09:15-15:45 IST single session")
-    subprocess.run([sys.executable, "run_collect.py", "--until", "15:45"], check=False)
+    print("Starting Modal tick collector 09:15-15:40 IST single session")
+    subprocess.run([sys.executable, "run_collect.py", "--until", "15:40"], check=False)
 
 @app.function(image=image, schedule=modal.Cron("45 3 * * 1-5"))  # 09:15 IST = 03:45 UTC (user wants 9:15, not 9:10)
 def scheduled():
