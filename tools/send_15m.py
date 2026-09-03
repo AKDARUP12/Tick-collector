@@ -54,14 +54,12 @@ def main():
     # bucket 15m
     ticks["bucket"] = ticks["ts"].dt.floor("15min")
     for bucket, g in ticks.groupby("bucket"):
-        label = bucket.strftime("%H%M")
-        # create temp parquet slice for this bucket? Instead zip original files filtered?
-        # For simplicity, create parquet slice for this bucket and zip it
+        start = bucket.strftime("%H%M")
+        end = (bucket + pd.Timedelta(minutes=15)).strftime("%H%M")
+        label = f"{start}-{end}"
         tmpdir = Path(tempfile.mkdtemp())
-        # write bucket slice as parquet
         slice_path = tmpdir / f"ticks-{args.date}-{label}.parquet"
         g.drop(columns=["bucket"]).to_parquet(slice_path, index=False, compression="zstd")
-        # also include _meta
         zip_name = Path(f"ticks-{args.date}-{label}.zip")
         with zipfile.ZipFile(zip_name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:
             z.write(slice_path, arcname=f"date={args.date}/ticks-{label}.parquet")

@@ -182,7 +182,9 @@ def main(stop_event: "threading.Event | None" = None, interactive: bool = True):
                         if not new_files:
                             # still send heartbeat if no new files but interval passed
                             continue
-                        ts = datetime.now(timezone.utc).astimezone(IST).strftime("%H%M")
+                        end = datetime.now(timezone.utc).astimezone(IST)
+                        start = end - __import__('datetime').timedelta(minutes=15)
+                        ts = f"{start.strftime('%H%M')}-{end.strftime('%H%M')}"
                         zip_name = f"ticks-{sess_date}-{ts}.zip"
                         # zip only new files to stay <50MB (15m ~ 25MB)
                         import zipfile
