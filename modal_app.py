@@ -23,7 +23,7 @@ def collect():
     # run with --until 15:40 IST
     subprocess.run([sys.executable, "run_collect.py", "--until", "15:40"], check=False)
 
-@app.function(image=image, schedule=modal.Cron("40 3 * * 1-5"))  # 09:10 IST = 03:40 UTC
+@app.function(image=image, schedule=modal.Cron("45 3 * * 1-5"))  # 09:15 IST = 03:45 UTC (user wants 9:15, not 9:10)
 def scheduled():
     collect.remote()
 
