@@ -57,12 +57,12 @@ jobs:
         if: ${{ inputs.dry_run == 'true' }}
         run: python run_collect.py --dry-run
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ticks-closing-${{ env.DATE || github.run_id }}
-          path: |
-            data/live/ticks/
+      # - uses: actions/upload-artifact@v4  # disabled: keep only Telegram 15m zips
+      #   if: always()
+      #   with:
+      #     name: ticks-closing-${{ env.DATE || github.run_id }}
+      #     path: |
+      #       data/live/ticks/
           if-no-files-found: warn
           retention-days: 14
 
