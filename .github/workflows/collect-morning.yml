@@ -79,6 +79,38 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Send zip to Telegram
+        if: always() && secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != ''
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          DATE=$(TZ=Asia/Kolkata date +%F)
+          if [ ! -d "data/live/ticks/date=$DATE" ]; then echo "No ticks for $DATE, skip telegram"; exit 0; fi
+          ZIP="ticks-$DATE.zip"
+          echo "Zipping data/live/ticks/date=$DATE + data/live/minute -> $ZIP"
+          zip -r -9 "$ZIP" "data/live/ticks/date=$DATE" data/live/minute 2>&1 | tail -20
+          ls -lh "$ZIP"
+          # Telegram Bot API limit 50MB per document -> split if needed
+          MAX=45M
+          if [ $(stat -c%s "$ZIP") -gt 47185920 ]; then
+            echo "Zip >50MB, splitting into 45MB chunks..."
+            split -b $MAX "$ZIP" "${ZIP}.part-"
+            for p in ${ZIP}.part-*; do
+              echo "Sending $p..."
+              curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                -F chat_id="${TELEGRAM_CHAT_ID}" \
+                -F document=@"$p" \
+                -F caption="Ticks $DATE part $(basename $p) - morning" | tail -c 500
+              sleep 1
+            done
+          else
+            curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+              -F chat_id="${TELEGRAM_CHAT_ID}" \
+              -F document=@"$ZIP" \
+              -F caption="Ticks $DATE - morning $(TZ=Asia/Kolkata date +%H:%M IST)" | tail -c 500
+          fi
+
       # --- Optional: commit data back to repo (uncomment to enable) ---
       # Data is ephemeral on runner - this persists it in the public repo.
       # If you enable this, be sure data/ is NOT gitignored for parquet,
